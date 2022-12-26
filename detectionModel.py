@@ -172,14 +172,21 @@ def detectObject():
     # Setting up camera
     # Capturing image
     image = get_image()
+    #setting up the image
+    image = cv2.resize(image, (416, 416))
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = image.astype(np.float32)
+    image = image / 255.0
+
     # Setting up TF lite model
+    interpreter.allocate_tensors()
+
     # Setting up input and output details
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    # Setting up input shape
+    interpreter.set_tensor(input_details[0]['index'], image)
+    interpreter.set_tensor(output_details[0]['index'], output_data)
+
+      # Setting up input shape
     input_shape = input_details[0]['shape']
-    #confidence threshold
-    
     # Setting up input data
     input_data = np.expand_dims(image, axis=0)
     # Setting up output data
