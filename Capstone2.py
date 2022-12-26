@@ -14,6 +14,10 @@ try:
         elif(GPIO.input(29) )== 1:
             print("print dry")
         time.sleep(0.5)
+        ## for 5 seconds run the loop
+        if time.time() > 5:
+            break
+        
 
 finally:
     GPIO.cleanup()
