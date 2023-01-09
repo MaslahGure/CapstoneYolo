@@ -1,0 +1,161 @@
+##
+
+import time
+import RPi.GPIO as GPIO
+# motor 1 inputs
+in1 = 24
+in2 = 23
+en = 25
+# motor 2 inputs
+in3 = 17
+in4 = 27
+en2 = 22
+
+# ultrasonic 1 inputs, water tank
+TRIG = 5
+ECHO = 6
+
+# ultrasonic 2 inputs, fertilizer tank
+TRIG2 = 13
+ECHO2 = 19
+""" 
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(4, GPIO.IN) """
+
+# motor 1 inputs setup
+GPIO.setup(in1, GPIO.OUT)
+GPIO.setup(in2, GPIO.OUT)
+GPIO.setup(en, GPIO.OUT)
+GPIO.output(in1, GPIO.LOW)
+GPIO.output(in2, GPIO.LOW)
+p1 = GPIO.PWM(en, 1000)
+p1.start(25)
+
+# motor 2 inputs setup
+GPIO.setup(in3, GPIO.OUT)
+GPIO.setup(in4, GPIO.OUT)
+GPIO.setup(en2, GPIO.OUT)
+GPIO.output(in3, GPIO.LOW)
+GPIO.output(in4, GPIO.LOW)
+p2 = GPIO.PWM(en2, 1000)
+p2.start(25)
+
+
+GPIO.setup(TRIG, GPIO.OUT)
+GPIO.setup(ECHO, GPIO.IN)
+
+# the fertilizer periodic pump time
+fertilizerTime = time.localtime()
+
+#streaming video based on a button press using usb camera
+
+
+
+try:
+    while True:
+        # ultrasonic 1 water tank
+        # Send a pulse to the sensor
+        GPIO.output(TRIG, True)
+        time.sleep(0.00001)
+        GPIO.output(TRIG, False)
+        # Measure the time it takes for the pulse to return
+        while GPIO.input(ECHO) == 0:
+            water_pulse_start = time.time()
+        while GPIO.input(ECHO) == 1:
+            water_pulse_end = time.time()
+        # Calculate the distance based on the time it took for the pulse to return
+        water_pulse_duration = water_pulse_end - water_pulse_start
+        waterLevel = water_pulse_duration * 17150
+        waterLevel = round(waterLevel, 2)
+        print("Water level: %.2f cm" % waterLevel)
+
+        # ultrasonic 2 fertilizer tank
+        # Send a pulse to the sensor
+        GPIO.output(TRIG2, True)
+        time.sleep(0.00001)
+        GPIO.output(TRIG2, False)
+        # Measure the time it takes for the pulse to return
+        while GPIO.input(ECHO2) == 0:
+            fertilizer_pulse_start = time.time()
+        while GPIO.input(ECHO2) == 1:
+            fertilizer_pulse_end = time.time()
+        # Calculate the distance based on the time it took for the pulse to return
+        fertilizer_pulse_duration = fertilizer_pulse_end - fertilizer_pulse_start
+        fertilizerLevel = fertilizer_pulse_duration * 17150
+        fertilizerLevel = round(fertilizerLevel, 2)
+        print("Fertilizer level: %.2f cm" % fertilizerLevel)
+
+        # Motor 1 used to control the water pump, the motor will run if the soil is dry
+        # the motor will stop if the soil is wet
+        # the motor will stop if the waterLevel is greater than 4cm (Empty water tank1)
+        if (GPIO.input(4)) == 0:
+            print("print wet")
+            print("stop")
+            GPIO.output(in1, GPIO.LOW)
+            GPIO.output(in2, GPIO.LOW)
+        elif (GPIO.input(4)) == 1:
+            print("print dry")
+            print("run")
+            if (waterLevel >= 4):
+                GPIO.output(in1, GPIO.LOW)
+                GPIO.output(in2, GPIO.LOW)
+                # print low water level
+                print("low water level")
+            else:
+                GPIO.output(in1, GPIO.HIGH)
+                GPIO.output(in2, GPIO.LOW)
+                p1.ChangeDutyCycle(30)  # speed of motor
+                print("forward water pump")
+
+        # Motor 2 used to control the fertilizer pump, the motor will run periodically (every day at 9am)
+        # the motor will stop if the fertilizerLevel is greater than 4cm (Empty fertilizer  tank2)
+        if (fertilizerTime.tm_hour == 9 and fertilizerTime.tm_min == 0 and fertilizerTime.tm_sec == 0):
+            if (fertilizerLevel >= 4):
+                GPIO.output(in3, GPIO.LOW)
+                GPIO.output(in4, GPIO.LOW)
+                # print low fertilizer level
+                print("low fertilizer level")
+                #send message to user using blynk
+
+            else:
+                GPIO.output(in3, GPIO.HIGH)
+                GPIO.output(in4, GPIO.LOW)
+                p2.ChangeDutyCycle(30)  # speed of motor
+                print("forward fertilizer pump")
+        else:
+            GPIO.output(in3, GPIO.LOW)
+            GPIO.output(in4, GPIO.LOW)
+            print("stop fertilizer pump") # stop fertilizer pump
+        time.sleep(0.5)
+
+finally:
+    GPIO.cleanup()
+
+
+""" 
+import BlynkLib
+
+# Initialize the Blynk app and create a virtual button for starting the stream
+# and another for stopping it
+blynk = BlynkLib.Blynk(YOUR_BLYNK_AUTH_TOKEN)
+start_button = blynk.get_virtual_pin(START_BUTTON_VIRTUAL_PIN_NUMBER)
+stop_button = blynk.get_virtual_pin(STOP_BUTTON_VIRTUAL_PIN_NUMBER)
+
+# Set up callback functions to handle button press events
+@blynk.handle_event('write V{}'.format(START_BUTTON_VIRTUAL_PIN_NUMBER))
+def start_button_handler(pin, value):
+    if value[0] == '1':
+        # Start streaming video
+        os.system('raspivid -o - -t 0 -hf -w 640 -h 360 -fps 25 | cvlc -vvv stream:///dev/stdin --sout "#standard{access=http,mux=ts,dst=:8090}" :demux=h264')
+
+@blynk.handle_event('write V{}'.format(STOP_BUTTON_VIRTUAL_PIN_NUMBER))
+def stop_button_handler(pin, value):
+    if value[0] == '1':
+        # Stop streaming video
+        os.system('pkill raspivid')
+
+# Run the Blynk app
+blynk.run()
+
+
+ """
